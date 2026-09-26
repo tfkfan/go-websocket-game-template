@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+    <meta charset="UTF-8"/>
+    <title>WebSocket Realtime Example</title>
+    <meta name="viewport" content="width=device-width"/>
+
+</head>
+<body>
+<div>
+    <div>
+        <p id="message"></p>
+    </div>
+</div>
+<script>
+    ;(() => {
+        function newRoom() {
+            return new Promise((resolve, reject) => {
+                fetch(`http://${location.host}/room`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Сеть ответила с ошибкой ' + response.status);
+                        }
+                        resolve(response.text())
+                    })
+                    .catch(error => {
+                        reject(error)
+                    });
+            })
+        }
+
+        function dial(roomId) {
+            const conn = new WebSocket(`ws://${location.host}/ws?room=${roomId}`)
+
+            return new Promise((resolve, reject) => {
+                conn.addEventListener('close', ev => {
+                    console.log(`WebSocket Disconnected code: ${ev.code}, reason: ${ev.reason}`)
+                    reject(ev)
+                })
+                conn.addEventListener('open', ev => {
+                    console.info('websocket connected')
+                    resolve(conn)
+                })
+
+                conn.addEventListener('message', ev => {
+                    if (typeof ev.data !== 'string') {
+                        console.error('unexpected message type', typeof ev.data)
+                        return
+                    }
+                    setText(ev.data)
+                })
+            })
+        }
+
+        const message = document.getElementById('message')
+
+        function setText(text, error) {
+            message.innerText = text
+            if (error) {
+                message.style.color = 'red'
+                message.style.fontStyle = 'bold'
+            }
+        }
+
+        setText('')
+
+        newRoom()
+            .then(resp => {
+                dial(resp)
+                    .then((c) => {
+                        setInterval(() => {
+                            c.send("from client")
+                        }, 2000)
+                    })
+                    .catch(e => {
+                        console.log(e)
+                    })
+            })
+            .catch(e => {
+                console.log(e)
+            })
+    })()
+</script>
+</body>
+</html>

@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/tfkfan/gogame/internal/game/room"
+	"github.com/tfkfan/gogame/internal/config"
 	"github.com/tfkfan/gogame/internal/server"
 )
 
@@ -23,22 +22,15 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) < 2 {
-		return errors.New("please provide an address to listen on as the first argument")
-	}
-
-	port := os.Args[1]
-
-	srv, errc, e := server.NewGameServer(port, "./assets", "/ws")
+	cfg, e := config.Read()
 	if e != nil {
 		return e
 	}
 
-	gCtx, gCancel := context.WithCancel(context.Background())
-	defer gCancel()
-
-	gameRoom := room.NewGameRoom(srv)
-	go gameRoom.Run(gCtx)
+	srv, errc, e := server.NewGameServer(cfg)
+	if e != nil {
+		return e
+	}
 
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -52,5 +44,5 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	return srv.HttpServer.Shutdown(ctx)
+	return srv.Shutdown(ctx)
 }
