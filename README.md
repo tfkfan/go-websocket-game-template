@@ -14,3 +14,12 @@ listening on ws://[::]:8080
 - Click the button to create a new game room
 - Click multiple times to anchor shown to perform multiple tabs(players) creation connected to exact the same room
 - Check the reply from server is synchronous and the same for the same room
+- Check server logs to validate client sending messages
+
+Expected result on client:
+
+![img.png](img.png)
+
+Expected result on server:
+
+![img_1.png](img_1.png)
