@@ -32,7 +32,7 @@ func NewGameServer(cfg *config.Config) (*GameServer, chan error, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	log.Printf("listening on ws://%v", listener.Addr())
+	log.Printf("listening on http://%v", listener.Addr())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &GameServer{

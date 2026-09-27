@@ -1,8 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -13,6 +16,11 @@ type Config struct {
 }
 
 func Read() (*Config, error) {
+	err := godotenv.Load()
+	if err != nil {
+		return nil, errors.New("failed to load .env")
+	}
+
 	var config Config
 	port, e := lookupEnv("PORT")
 	config.Port = port

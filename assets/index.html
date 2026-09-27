@@ -15,7 +15,7 @@
                     <button id="new_room_btn">Create new room</button>
                 </th>
                 <th>
-                    <a id="room_id"></a>
+                    <a id="room_id" target="_blank"></a>
                 </th>
             </tr>
 
@@ -107,6 +107,7 @@
         const url = new URL(location.href);
         if (url.searchParams.has('room')) {
             const roomId = url.searchParams.get('room');
+            setRoomId(roomId)
             dial(roomId)
                 .then((c) => {
                     setInterval(() => {
