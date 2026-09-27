@@ -9,6 +9,19 @@
 <body>
 <div>
     <div>
+        <table>
+            <tr>
+                <th>
+                    <button id="new_room_btn">Create new room</button>
+                </th>
+                <th>
+                    <a id="room_id"></a>
+                </th>
+            </tr>
+
+        </table>
+    </div>
+    <div>
         <p id="message"></p>
     </div>
 </div>
@@ -24,7 +37,7 @@
                 })
                     .then(response => {
                         if (!response.ok) {
-                            throw new Error('Сеть ответила с ошибкой ' + response.status);
+                            throw new Error('Network err ' + response.status);
                         }
                         resolve(response.text())
                     })
@@ -52,14 +65,17 @@
                         console.error('unexpected message type', typeof ev.data)
                         return
                     }
-                    setText(ev.data)
+                    setMessage(ev.data)
                 })
             })
         }
 
+        const btn = document.getElementById('new_room_btn')
         const message = document.getElementById('message')
+        const roomIdAnchor = document.getElementById('room_id')
 
-        function setText(text, error) {
+
+        function setMessage(text, error) {
             message.innerText = text
             if (error) {
                 message.style.color = 'red'
@@ -67,23 +83,42 @@
             }
         }
 
-        setText('')
+        setMessage('')
 
-        newRoom()
-            .then(resp => {
-                dial(resp)
-                    .then((c) => {
-                        setInterval(() => {
-                            c.send("from client")
-                        }, 2000)
-                    })
-                    .catch(e => {
-                        console.log(e)
-                    })
-            })
-            .catch(e => {
-                console.log(e)
-            })
+        function setRoomId(text, error) {
+            roomIdAnchor.href = `http://${location.host}?room=${text}`
+            roomIdAnchor.innerText = text
+            if (error) {
+                roomIdAnchor.style.color = 'red'
+                roomIdAnchor.style.fontStyle = 'bold'
+            }
+        }
+
+        btn.onclick = () => {
+            newRoom()
+                .then(resp => {
+                    setRoomId(resp)
+                })
+                .catch(e => {
+                    console.log(e)
+                })
+        }
+
+        const url = new URL(location.href);
+        if (url.searchParams.has('room')) {
+            const roomId = url.searchParams.get('room');
+            dial(roomId)
+                .then((c) => {
+                    setInterval(() => {
+                        c.send("hello from client")
+                    }, 2000)
+                })
+                .catch(e => {
+                    console.log(e)
+                })
+        } else {
+            console.log(`Create new room or rejoin to existing one using link like http://${location.host}/ws?room=ROOMUUID`)
+        }
     })()
 </script>
 </body>

@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -43,7 +44,7 @@ func (gr *GameRoom) Broadcast(msg []byte) {
 
 	for _, subscriber := range gr.players {
 		select {
-		case subscriber.InMessages <- msg:
+		case subscriber.OutMessages <- msg:
 		}
 	}
 }
@@ -128,7 +129,6 @@ func (gr *GameRoom) ListenOut(p *player.Player) {
 			if !ok {
 				return
 			}
-			log.Printf("player outcoming message: %s", msg)
 			p.Write(gr.gameRoomContext, msg)
 		case <-gr.gameRoomContext.Done():
 			return
@@ -169,7 +169,9 @@ func (gr *GameRoom) Close(closeCallback func(gr *GameRoom)) {
 }
 
 func (gr *GameRoom) Run(ctx context.Context, closeCallback func(gr *GameRoom)) {
-	timer := time.NewTimer(time.Second * 5)
+	timer := time.NewTimer(time.Minute)
+	ticker := time.NewTicker(time.Second * 2)
+	counter := 0
 	for {
 		select {
 		case <-timer.C:
@@ -177,11 +179,17 @@ func (gr *GameRoom) Run(ctx context.Context, closeCallback func(gr *GameRoom)) {
 			log.Printf("Game room %s closed because of timeout", gr.Id)
 			return
 		case <-ctx.Done():
+			timer.Stop()
+			ticker.Stop()
 			gr.Close(closeCallback)
 			log.Printf("Game room %s closed because context cancel", gr.Id)
 			return
-		default:
-			//tm.UpdateState()
+
+		case <-ticker.C:
+			counter++
+			gr.Broadcast([]byte("hello from server #" + strconv.Itoa(counter)))
+
+			log.Printf("Game room %s contains %d players", gr.Id, len(gr.players))
 		}
 	}
 }
