@@ -15,13 +15,13 @@ import (
 func main() {
 	log.SetFlags(0)
 
-	err := run()
+	err := run(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func run(parent context.Context) error {
 	cfg, e := config.Read()
 	if e != nil {
 		return e
@@ -35,13 +35,14 @@ func run() error {
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	select {
+	case <-parent.Done():
 	case err := <-errc:
 		log.Printf("failed to serve: %v", err)
 	case sig := <-sigs:
 		log.Printf("terminating: %v", sig)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(parent, time.Second*10)
 	defer cancel()
 
 	return srv.Shutdown(ctx)

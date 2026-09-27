@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -13,6 +14,7 @@ type Config struct {
 	WebSocketEndpoint string
 	RoomEndpoint      string
 	AssetsDir         string
+	RoomTimeout       time.Duration
 }
 
 func Read() (*Config, error) {
@@ -42,6 +44,17 @@ func Read() (*Config, error) {
 
 	roomEndpoint, e := lookupEnv("ROOM_ENDPOINT")
 	config.RoomEndpoint = roomEndpoint
+	if e != nil {
+		return nil, e
+	}
+
+	roomTimeoutRaw, e := lookupEnv("ROOM_TIMEOUT")
+	if e != nil {
+		return nil, e
+	}
+	roomTimeout, e := time.ParseDuration(roomTimeoutRaw)
+
+	config.RoomTimeout = roomTimeout
 	if e != nil {
 		return nil, e
 	}

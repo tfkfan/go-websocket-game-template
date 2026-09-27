@@ -24,6 +24,8 @@ type GameServer struct {
 	serverCancel context.CancelFunc
 	gameServerMu sync.Mutex
 
+	cfg *config.Config
+
 	rooms map[uuid.UUID]*room.GameRoom
 }
 
@@ -39,6 +41,7 @@ func NewGameServer(cfg *config.Config) (*GameServer, chan error, error) {
 		rooms:        make(map[uuid.UUID]*room.GameRoom),
 		serverCtx:    ctx,
 		serverCancel: cancel,
+		cfg:          cfg,
 	}
 	srv.serveMux.Handle("/", http.FileServer(http.Dir(cfg.AssetsDir)))
 	srv.serveMux.HandleFunc(cfg.WebSocketEndpoint, srv.handleWsConnection)
@@ -95,7 +98,7 @@ func (srv *GameServer) handleRoom(w http.ResponseWriter, r *http.Request) {
 
 	gameRoomContext, gameRoomCancel := context.WithCancel(srv.serverCtx)
 
-	gr := room.NewGameRoom(gameRoomContext, gameRoomCancel, 16)
+	gr := room.NewGameRoom(gameRoomContext, gameRoomCancel, srv.cfg)
 
 	srv.gameServerMu.Lock()
 	defer srv.gameServerMu.Unlock()
