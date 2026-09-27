@@ -1,4 +1,5 @@
 # Realtime websocket game server demo and template
+![img_2.png](img_2.png)
 
 This is fullstack project. Static (index.html) files are in ./assets
 
