@@ -77,7 +77,6 @@ func (srv *GameServer) handleWsConnection(w http.ResponseWriter, r *http.Request
 	if wsErr == nil {
 		wsErr = srv.tryConnect(r, ws)
 	}
-	defer srv.closeWebSocket(ws, wsErr)
 	if errors.Is(wsErr, context.Canceled) {
 		return
 	}
@@ -87,10 +86,7 @@ func (srv *GameServer) handleWsConnection(w http.ResponseWriter, r *http.Request
 	}
 	if wsErr != nil {
 		log.Printf("error on websocket join: %v", wsErr)
-		e := ws.Write(r.Context(), websocket.MessageText, []byte(wsErr.Error()))
-		if e != nil {
-			return
-		}
+		srv.closeWebSocket(ws, websocket.StatusBadGateway, wsErr.Error())
 		return
 	}
 }
@@ -153,12 +149,8 @@ func (srv *GameServer) onJoin(p *player.Player, gr *room.GameRoom) error {
 	return errors.New("game room is full")
 }
 
-func (srv *GameServer) closeWebSocket(ws *websocket.Conn, err error) {
-	errStr := ""
-	if err != nil {
-		errStr = err.Error()
-	}
-	e := ws.Close(websocket.StatusBadGateway, errStr)
+func (srv *GameServer) closeWebSocket(ws *websocket.Conn, statusCode websocket.StatusCode, statusMessage string) {
+	e := ws.Close(statusCode, statusMessage)
 	if e != nil {
 		return
 	}
