@@ -73,19 +73,24 @@ func (srv *GameServer) Shutdown(ctx context.Context) error {
 }
 
 func (srv *GameServer) handleWsConnection(w http.ResponseWriter, r *http.Request) {
-	ws, err := websocket.Accept(w, r, nil)
-	if err == nil {
-		err = srv.onJoin(ws, r)
+	ws, wsErr := websocket.Accept(w, r, nil)
+	if wsErr == nil {
+		wsErr = srv.onJoin(ws, r)
 	}
-	if errors.Is(err, context.Canceled) {
+	defer srv.closeWebSocket(ws, wsErr)
+	if errors.Is(wsErr, context.Canceled) {
 		return
 	}
-	if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
-		websocket.CloseStatus(err) == websocket.StatusGoingAway {
+	if websocket.CloseStatus(wsErr) == websocket.StatusNormalClosure ||
+		websocket.CloseStatus(wsErr) == websocket.StatusGoingAway {
 		return
 	}
-	if err != nil {
-		log.Printf("error on websocket join: %v", err)
+	if wsErr != nil {
+		log.Printf("error on websocket join: %v", wsErr)
+		e := ws.Write(r.Context(), websocket.MessageText, []byte(wsErr.Error()))
+		if e != nil {
+			return
+		}
 		return
 	}
 }
@@ -109,8 +114,6 @@ func (srv *GameServer) handleRoom(w http.ResponseWriter, r *http.Request) {
 		srv.DeleteGameRoom(room.Id)
 	})
 
-	log.Printf("created new game room: %v", gr.Id)
-
 	txt, e := gr.Id.MarshalText()
 	if e != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -133,7 +136,6 @@ func (srv *GameServer) onJoin(ws *websocket.Conn, r *http.Request) error {
 		pId = uuid.New()
 	}
 	p := player.NewPlayer(pId, ws, 16)
-	defer srv.closeWebSocket(ws)
 
 	gameRoomId, e := uuid.Parse(r.URL.Query().Get("room"))
 
@@ -149,14 +151,21 @@ func (srv *GameServer) onJoin(ws *websocket.Conn, r *http.Request) error {
 
 	defer gr.OnDisconnect(p)
 
-	gr.AddPlayer(p)
-	gr.OnJoin(p)
-	return gr.ReadWebSocket(p)
+	if gr.AddPlayer(p) {
+		gr.OnJoin(p)
+		return gr.ReadWebSocket(p)
+	}
+
+	return errors.New("game room is full")
 }
 
-func (srv *GameServer) closeWebSocket(ws *websocket.Conn) {
-	err := ws.CloseNow()
+func (srv *GameServer) closeWebSocket(ws *websocket.Conn, err error) {
+	errStr := ""
 	if err != nil {
+		errStr = err.Error()
+	}
+	e := ws.Close(websocket.StatusBadGateway, errStr)
+	if e != nil {
 		return
 	}
 }

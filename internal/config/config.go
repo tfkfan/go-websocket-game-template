@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,7 @@ type Config struct {
 	RoomEndpoint      string
 	AssetsDir         string
 	RoomTimeout       time.Duration
+	PlayersBufferSize int
 }
 
 func Read() (*Config, error) {
@@ -25,39 +27,48 @@ func Read() (*Config, error) {
 
 	var config Config
 	port, e := lookupEnv("PORT")
-	config.Port = port
 	if e != nil {
 		return nil, e
 	}
+	config.Port = port
 
 	webSocketEndpoint, e := lookupEnv("WS_ENDPOINT")
-	config.WebSocketEndpoint = webSocketEndpoint
 	if e != nil {
 		return nil, e
 	}
+	config.WebSocketEndpoint = webSocketEndpoint
 
 	assetsDir, e := lookupEnv("ASSETS_DIR")
-	config.AssetsDir = assetsDir
 	if e != nil {
 		return nil, e
 	}
+	config.AssetsDir = assetsDir
 
 	roomEndpoint, e := lookupEnv("ROOM_ENDPOINT")
-	config.RoomEndpoint = roomEndpoint
 	if e != nil {
 		return nil, e
 	}
+	config.RoomEndpoint = roomEndpoint
 
 	roomTimeoutRaw, e := lookupEnv("ROOM_TIMEOUT")
 	if e != nil {
 		return nil, e
 	}
 	roomTimeout, e := time.ParseDuration(roomTimeoutRaw)
-
-	config.RoomTimeout = roomTimeout
 	if e != nil {
 		return nil, e
 	}
+	config.RoomTimeout = roomTimeout
+
+	playersBufferSizeRaf, e := lookupEnv("PLAYERS_BUFFER_SIZE")
+	if e != nil {
+		return nil, e
+	}
+	playersBufferSize, e := strconv.Atoi(playersBufferSizeRaf)
+	if e != nil {
+		return nil, err
+	}
+	config.PlayersBufferSize = playersBufferSize
 
 	return &config, nil
 }

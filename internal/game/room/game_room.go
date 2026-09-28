@@ -29,12 +29,14 @@ type GameRoom struct {
 func NewGameRoom(gameRoomContext context.Context, gameRoomCancel context.CancelFunc, srvCfg *config.Config) *GameRoom {
 	r := &GameRoom{
 		Id:                   uuid.New(),
-		playersMessageBuffer: 16,
+		playersMessageBuffer: srvCfg.PlayersBufferSize,
 		players:              make(map[uuid.UUID]*player.Player),
 		ctx:                  gameRoomContext,
 		ctxCancel:            gameRoomCancel,
 		roomTimeout:          srvCfg.RoomTimeout,
 	}
+
+	log.Printf("created new game room with size %d: %v", r.Id, r.playersMessageBuffer)
 
 	return r
 }
@@ -72,28 +74,31 @@ func (gr *GameRoom) Send(recipient uuid.UUID, msg []byte) {
 	}
 }
 
-func (gr *GameRoom) AddPlayer(p *player.Player) {
+func (gr *GameRoom) AddPlayer(p *player.Player) bool {
 	gr.roomMu.Lock()
 	defer gr.roomMu.Unlock()
 
-	if gr.closed {
-		return
+	if gr.closed || len(gr.players) == gr.playersMessageBuffer {
+		return false
 	}
 
 	gr.players[p.Id] = p
+
+	return true
 }
 
-func (gr *GameRoom) DeletePlayer(p *player.Player) {
+func (gr *GameRoom) DeletePlayer(p *player.Player) bool {
 	gr.roomMu.Lock()
 	defer gr.roomMu.Unlock()
 
 	if gr.closed {
-		return
+		return false
 	}
 
 	delete(gr.players, p.Id)
 	close(p.InMessages)
 	close(p.OutMessages)
+	return true
 }
 
 func (gr *GameRoom) OnJoin(p *player.Player) {
