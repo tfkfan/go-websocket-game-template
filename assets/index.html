@@ -110,9 +110,11 @@
             setRoomId(roomId)
             dial(roomId)
                 .then((c) => {
+                    var counter = 1
                     setInterval(() => {
-                        c.send("hello from client")
-                    }, 100)
+                        c.send("hello from client " + counter)
+                        counter++
+                    }, 1000)
                 })
                 .catch(e => {
                     console.log(e)

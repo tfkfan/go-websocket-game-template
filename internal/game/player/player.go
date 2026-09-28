@@ -2,17 +2,23 @@ package player
 
 import (
 	"context"
+	"log"
 	"net/http"
+	"sync"
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"github.com/tfkfan/gogame/internal/network"
 )
 
 type Player struct {
 	Id          uuid.UUID
 	ws          *websocket.Conn
+	Mu          sync.RWMutex
 	InMessages  chan []byte
 	OutMessages chan []byte
+
+	LastAction string
 }
 
 func ExtractPlayerFromRequest(r *http.Request, ws *websocket.Conn) (*Player, error) {
@@ -46,4 +52,19 @@ func (p *Player) Write(ctx context.Context, msg []byte) {
 	if err != nil {
 		return
 	}
+}
+
+func (p *Player) Send(msg []byte) {
+	select {
+	case p.OutMessages <- msg:
+	}
+}
+
+func (p *Player) CloseWebSocket(statusCode websocket.StatusCode, errorMessage string) {
+	network.CloseWebSocket(p.ws, statusCode, errorMessage)
+}
+
+func (p *Player) DoAction(action string) {
+	log.Printf("action '%s' performed for player %s\n", action, p.Id)
+	p.LastAction = action
 }

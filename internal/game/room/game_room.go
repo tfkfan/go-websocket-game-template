@@ -58,6 +58,10 @@ func ExtractGameRoomFromRequest(r *http.Request, existingRooms map[uuid.UUID]*Ga
 	return gr, nil
 }
 
+func (gr *GameRoom) ActivePlayers() int {
+	return len(gr.players)
+}
+
 func (gr *GameRoom) Broadcast(msg []byte) {
 	gr.roomMu.Lock()
 	defer gr.roomMu.Unlock()
@@ -66,9 +70,9 @@ func (gr *GameRoom) Broadcast(msg []byte) {
 		return
 	}
 
-	for _, subscriber := range gr.players {
+	for _, p := range gr.players {
 		select {
-		case subscriber.OutMessages <- msg:
+		case p.OutMessages <- msg:
 		}
 	}
 }
@@ -86,9 +90,7 @@ func (gr *GameRoom) Send(recipient uuid.UUID, msg []byte) {
 		return
 	}
 
-	select {
-	case p.OutMessages <- msg:
-	}
+	p.Send(msg)
 }
 
 func (gr *GameRoom) AddPlayer(p *player.Player) bool {
@@ -123,8 +125,6 @@ func (gr *GameRoom) OnJoin(p *player.Player) {
 
 	go gr.ListenIn(p)
 	go gr.ListenOut(p)
-
-	gr.AddPlayer(p)
 }
 
 func (gr *GameRoom) OnDisconnect(p *player.Player) {
@@ -170,14 +170,18 @@ func (gr *GameRoom) ListenIn(p *player.Player) {
 			if !ok {
 				return
 			}
-			log.Printf("received incoming message: %s", msg)
+
+			p.Mu.Lock()
+			// changing player state safely
+			p.DoAction(string(msg))
+			p.Mu.Unlock()
 		case <-gr.ctx.Done():
 			return
 		}
 	}
 }
 
-func (gr *GameRoom) Close(closeCallback func(gr *GameRoom)) {
+func (gr *GameRoom) CloseRoom(closeCallback func(gr *GameRoom)) {
 	if gr.closed {
 		return
 	}
@@ -205,7 +209,7 @@ func (gr *GameRoom) Run(ctx context.Context, closeCallback func(gr *GameRoom)) {
 	stop := func() {
 		timer.Stop()
 		ticker.Stop()
-		gr.Close(closeCallback)
+		gr.CloseRoom(closeCallback)
 	}
 
 	for {
@@ -218,12 +222,20 @@ func (gr *GameRoom) Run(ctx context.Context, closeCallback func(gr *GameRoom)) {
 			stop()
 			log.Printf("Game room %s closed because context cancel", gr.Id)
 			return
-			//Main game loop should be with default keyword only. Ticker here as imitation of game loop tick
+			//Some async periodic game room task to be broadcasted (like game map change or something else)
 		case <-ticker.C:
 			counter++
-			gr.Broadcast([]byte("hello from server #" + strconv.Itoa(counter)))
+
+			gr.Broadcast([]byte("from server #" + strconv.Itoa(counter)))
 
 			log.Printf("Game room %s contains %d players", gr.Id, len(gr.players))
+		default:
+			//Main game loop execution
+			for _, p := range gr.players {
+				p.Mu.RLock()
+				p.Send([]byte(p.LastAction + " handled on server"))
+				p.Mu.RUnlock()
+			}
 		}
 	}
 }

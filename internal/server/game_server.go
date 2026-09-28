@@ -14,6 +14,7 @@ import (
 	"github.com/tfkfan/gogame/internal/config"
 	"github.com/tfkfan/gogame/internal/game/player"
 	"github.com/tfkfan/gogame/internal/game/room"
+	"github.com/tfkfan/gogame/internal/network"
 )
 
 type GameServer struct {
@@ -86,7 +87,7 @@ func (srv *GameServer) handleWsConnection(w http.ResponseWriter, r *http.Request
 	}
 	if wsErr != nil {
 		log.Printf("error on websocket join: %v", wsErr)
-		srv.closeWebSocket(ws, websocket.StatusBadGateway, wsErr.Error())
+		network.CloseWebSocket(ws, websocket.StatusBadGateway, wsErr.Error())
 		return
 	}
 }
@@ -100,7 +101,15 @@ func (srv *GameServer) tryConnect(r *http.Request, ws *websocket.Conn) error {
 	if e != nil {
 		return e
 	}
-	return srv.onJoin(p, gr)
+
+	defer gr.OnDisconnect(p)
+
+	if gr.AddPlayer(p) {
+		gr.OnJoin(p)
+		return gr.ReadWebSocket(p)
+	}
+
+	return errors.New("game room is full")
 }
 
 func (srv *GameServer) handleRoom(w http.ResponseWriter, r *http.Request) {
@@ -136,22 +145,4 @@ func (srv *GameServer) DeleteGameRoom(id uuid.UUID) {
 	srv.gameServerMu.Lock()
 	defer srv.gameServerMu.Unlock()
 	delete(srv.rooms, id)
-}
-
-func (srv *GameServer) onJoin(p *player.Player, gr *room.GameRoom) error {
-	defer gr.OnDisconnect(p)
-
-	if gr.AddPlayer(p) {
-		gr.OnJoin(p)
-		return gr.ReadWebSocket(p)
-	}
-
-	return errors.New("game room is full")
-}
-
-func (srv *GameServer) closeWebSocket(ws *websocket.Conn, statusCode websocket.StatusCode, statusMessage string) {
-	e := ws.Close(statusCode, statusMessage)
-	if e != nil {
-		return
-	}
 }
