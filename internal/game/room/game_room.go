@@ -2,7 +2,9 @@ package room
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -39,6 +41,21 @@ func NewGameRoom(gameRoomContext context.Context, gameRoomCancel context.CancelF
 	log.Printf("created new game room with size %d: %v", r.Id, r.playersMessageBuffer)
 
 	return r
+}
+
+func ExtractGameRoomFromRequest(r *http.Request, existingRooms map[uuid.UUID]*GameRoom) (*GameRoom, error) {
+	gameRoomId, e := uuid.Parse(r.URL.Query().Get("room"))
+	if e != nil {
+		return nil, e
+	}
+
+	gr, exists := existingRooms[gameRoomId]
+
+	if !exists {
+		return nil, errors.New("game room not found")
+	}
+
+	return gr, nil
 }
 
 func (gr *GameRoom) Broadcast(msg []byte) {

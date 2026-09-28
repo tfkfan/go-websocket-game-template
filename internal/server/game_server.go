@@ -56,11 +56,11 @@ func NewGameServer(cfg *config.Config) (*GameServer, chan error, error) {
 	}
 	srv.HttpServer = httpSrv
 
-	errc := make(chan error, 1)
+	errChannel := make(chan error, 1)
 	go func() {
-		errc <- httpSrv.Serve(listener)
+		errChannel <- httpSrv.Serve(listener)
 	}()
-	return srv, errc, nil
+	return srv, errChannel, nil
 }
 
 func (srv *GameServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +75,7 @@ func (srv *GameServer) Shutdown(ctx context.Context) error {
 func (srv *GameServer) handleWsConnection(w http.ResponseWriter, r *http.Request) {
 	ws, wsErr := websocket.Accept(w, r, nil)
 	if wsErr == nil {
-		wsErr = srv.onJoin(ws, r)
+		wsErr = srv.tryConnect(r, ws)
 	}
 	defer srv.closeWebSocket(ws, wsErr)
 	if errors.Is(wsErr, context.Canceled) {
@@ -93,6 +93,18 @@ func (srv *GameServer) handleWsConnection(w http.ResponseWriter, r *http.Request
 		}
 		return
 	}
+}
+
+func (srv *GameServer) tryConnect(r *http.Request, ws *websocket.Conn) error {
+	gr, e := room.ExtractGameRoomFromRequest(r, srv.rooms)
+	if e != nil {
+		return e
+	}
+	p, e := player.ExtractPlayerFromRequest(r, ws)
+	if e != nil {
+		return e
+	}
+	return srv.onJoin(p, gr)
 }
 
 func (srv *GameServer) handleRoom(w http.ResponseWriter, r *http.Request) {
@@ -130,25 +142,7 @@ func (srv *GameServer) DeleteGameRoom(id uuid.UUID) {
 	delete(srv.rooms, id)
 }
 
-func (srv *GameServer) onJoin(ws *websocket.Conn, r *http.Request) error {
-	pId, e := uuid.Parse(r.Header.Get("X-Player-Id"))
-	if e != nil {
-		pId = uuid.New()
-	}
-	p := player.NewPlayer(pId, ws, 16)
-
-	gameRoomId, e := uuid.Parse(r.URL.Query().Get("room"))
-
-	var gr *room.GameRoom
-	if e != nil {
-		return e
-	}
-	if val, exists := srv.rooms[gameRoomId]; !exists {
-		return errors.New("game room not found")
-	} else {
-		gr = val
-	}
-
+func (srv *GameServer) onJoin(p *player.Player, gr *room.GameRoom) error {
 	defer gr.OnDisconnect(p)
 
 	if gr.AddPlayer(p) {

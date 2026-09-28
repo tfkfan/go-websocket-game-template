@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
@@ -12,6 +13,15 @@ type Player struct {
 	ws          *websocket.Conn
 	InMessages  chan []byte
 	OutMessages chan []byte
+}
+
+func ExtractPlayerFromRequest(r *http.Request, ws *websocket.Conn) (*Player, error) {
+	pId, e := uuid.Parse(r.Header.Get("X-Player-Id"))
+	if e != nil {
+		pId = uuid.New()
+	}
+	p := NewPlayer(pId, ws, 16)
+	return p, nil
 }
 
 func NewPlayer(id uuid.UUID, ws *websocket.Conn, playersBuffer int) *Player {
